@@ -299,6 +299,7 @@ def test_generator(generator):
                 model_name="test_outputs")
 
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     help_ = "Load generator h5 model with trained weights"
