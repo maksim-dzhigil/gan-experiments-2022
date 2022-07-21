@@ -102,15 +102,11 @@ class DataGenerator(tf.keras.utils.Sequence):
 
     def __init__(self,
                  batch_size=100,
-                 train_steps=10000,
-                 latent_size=1,
-                 gen_vec_size=1
+                 latent_space_dim=1,
                  ):
 
         self.batch_size = batch_size
-        self.train_steps = train_steps
-        self.latent_size = latent_size
-        self.gen_vec_size = gen_vec_size
+        self.latent_space_dim = latent_space_dim
 
     def __len__(self):
         return 1
@@ -119,7 +115,7 @@ class DataGenerator(tf.keras.utils.Sequence):
         pass
 
     def __getitem__(self, index):
-        X_noise = np.random.uniform(-1.0, 1.0, size=[self.batch_size, self.latent_size])
+        X_noise = np.random.uniform(-1.0, 1.0, size=[self.batch_size, self.latent_space_dim])
 
         init_sampling = np.random.normal(0, 1, size=100000)
         Y_target_sampling = init_sampling[(init_sampling < -3) |
@@ -136,33 +132,50 @@ class DCGANTraining:
 
     def __init__(self,
                  name='DCGAN',
+                 latent_size=1,
+                 gen_vec_size=1,
+                 lr=2e-4,
+                 decay=6e-8,
+                 lr_multiplier=0.5,
+                 decay_multiplier=0.5,
+                 train_steps=10000,
+                 batch_size=100
                  ):
+
+        self.name = name
+        self.latent_size = latent_size
+        self.gen_vec_size = gen_vec_size
+        self.lr = lr
+        self.decay = decay
+        self.lr_multiplier = lr_multiplier
+        self.decay_multiplier = decay_multiplier
+        self.train_steps = train_steps
+        self.batch_size = batch_size
 
         self.discriminator = None
         self.generator = None
         self.adversarial = None
+        self.sample_generator = DataGenerator()
 
-        self.build_models()
+        self.dis_callback = None
+        self.adv_callback = None
 
-    def build_models(self,
-                     latent_size=(None, 1),
-                     gen_vec_size=(None, 1),
-                     lr=2e-4,
-                     decay=6e-8,
-                     lr_multiplier=0.5,
-                     decay_multiplier=0.5):
+        self.build_models()  # is it worth?
+        self.create_callback()
 
+    def build_models(self):
+        # instances creation
         self.discriminator = DiscriminatorDense()
         self.generator = GeneratorDense()
         self.adversarial = AdversarialNetwork()
-
-        self.discriminator.build(input_shape=gen_vec_size)
-        self.generator.build(input_shape=latent_size)
-        self.adversarial.build(input_shape=latent_size)
-
-        dis_optimizer = RMSprop(learning_rate=lr, decay=decay)
-        adv_optimizer = RMSprop(learning_rate=lr*lr_multiplier, decay=decay*decay_multiplier)
-
+        # building models
+        self.discriminator.build(input_shape=(None, self.gen_vec_size))
+        self.generator.build(input_shape=(None, self.latent_size))
+        self.adversarial.build(input_shape=(None, self.latent_size))
+        # preparing optimizers
+        dis_optimizer = RMSprop(learning_rate=self.lr, decay=self.decay)
+        adv_optimizer = RMSprop(learning_rate=self.lr*self.lr_multiplier, decay=self.decay*self.decay_multiplier)
+        # models compiling
         self.discriminator.compile(loss='binary_crossentropy',
                                    optimizer=dis_optimizer,
                                    metrics=['accuracy'])
@@ -170,44 +183,61 @@ class DCGANTraining:
                                  optimizer=adv_optimizer,
                                  metrics=['accuracy'])
 
-    def train_models(self,
-                     batch_size=100,
-                     train_steps=10000,
-                     ):
-
+    def train_models(self):
+        # preparing training data
         sample_generator = DataGenerator()
+        x_noise, y_target_sample = next(iter(sample_generator))  # x_noise.shape == y_target_sample.shape == (100,1)
+        train_size = y_target_sample.shape[0]
+        # training process
+        for i in range(self.train_steps):
+            # making real and fake distributions
+            rand_indexes = np.random.randint(0, train_size, size=self.batch_size)
+            real_distribution = np.array(y_target_sample[rand_indexes])  # 100 random indexes in 100-elements array. WTF
+            fake_distribution = self.generator.predict(x_noise)
+            # preparing training data for discriminator
+            x_train_dis = np.concatenate((real_distribution, fake_distribution))
+            y_train_dis = np.ones([2 * self.batch_size, 1])
+            y_train_dis[self.batch_size:, :] = 0.0
+            # preparing training data for adversarial
+            x_train_adv = np.random.uniform(-1.0, 1.0, size=[self.batch_size, self.latent_size])
+            y_train_adv = np.ones([self.batch_size, 1])
+            # computing loss and accuracy
+            dis_loss, dis_accuracy = self.discriminator.train_on_batch(x_train_dis, y_train_dis)
+            adv_loss, adv_acc = self.adversarial.train_on_batch(x_train_adv, y_train_adv)
+            # saving training history for TensorBoard chart
+            self.dis_callback.on_epoch_end(i, named_logs(self.discriminator, (dis_loss, dis_accuracy)))
+            self.adv_callback.on_epoch_end(i, named_logs(self.adversarial, (adv_loss, adv_acc)))
+            # output the results to the console
+            log = "%d: [discriminator loss: %f, acc: %f] [adversarial loss: %f, acc: %f]" % (i, dis_loss, dis_accuracy,
+                                                                                             adv_loss, adv_acc)
+            print(log)
 
-        for i in range(train_steps):
-            rand_indexes = np.random.randint(0, train_size, size=batch_size)
-            real_distribution = np.array(x_train[rand_indexes])
-            noise = np.random.uniform(-1.0,
-                                      1.0,
-                                      size=[batch_size, latent_size])
-            fake_distribution = self.generator.predict(noise)
+    def create_callback(self,
+                        log_folder='./one_dim_GAN/logs/',
+                        ):
 
-    def callback_registration(self,
-                              log_folder='./one_dim_GAN/logs/',
-                              batch_size=100,):
-
-        dis_callback = TensorBoard(
+        self.dis_callback = TensorBoard(
             log_dir=log_folder + 'dis_callback',
             histogram_freq=0,
-            batch_size=batch_size
+            batch_size=self.batch_size
         )
-        adv_callback = TensorBoard(
+        self.adv_callback = TensorBoard(
             log_dir=log_folder + 'adv_callback',
             histogram_freq=0,
-            batch_size=batch_size
+            batch_size=self.batch_size
         )
 
-        dis_callback.set_model(self.discriminator)
-        adv_callback.set_model(self.adversarial)
+        self.dis_callback.set_model(self.discriminator)
+        self.adv_callback.set_model(self.adversarial)
 
-        def named_logs(model, logs):
-            result = {}
-            for log in zip(model.metrics_names, logs):
-                result[log[0]] = log[1]
-            return result
+
+def named_logs(model, logs):
+    result = {}
+    for log in zip(model.metrics_names, logs):
+        result[log[0]] = log[1]
+    return result
+
 
 if __name__ == '__main__':
-    a = AdversarialNetwork()
+    dcgan = DCGANTraining()
+    dcgan.train_models()
