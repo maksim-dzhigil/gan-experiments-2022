@@ -19,7 +19,7 @@ import os
 import argparse
 
 
-class OneDimGAN:
+class DCGAN:
 
     def __init__(self,
                  model_name='one-dim_GAN',
@@ -213,10 +213,10 @@ if __name__ == '__main__':
     help_ = "Load generator h5 model with trained weights"
     parser.add_argument("-g", "--generator", help=help_)
     args = parser.parse_args()
-    odg = OneDimGAN()
+    dc_gan = DCGAN()
 
     if args.generator:
         test_generator = load_model(args.generator)
-        odg.test_generator(test_generator)
+        dc_gan.test_generator(test_generator)
     else:
-        odg.train_models()
+        dc_gan.train_models()
