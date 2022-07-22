@@ -131,7 +131,7 @@ class DataGenerator(tf.keras.utils.Sequence):
 class DCGANTraining:
 
     def __init__(self,
-                 name='DCGAN',
+                 name='one_dim_DCGAN',
                  latent_size=1,
                  gen_vec_size=1,
                  lr=2e-4,
@@ -139,10 +139,12 @@ class DCGANTraining:
                  lr_multiplier=0.5,
                  decay_multiplier=0.5,
                  train_steps=10000,
-                 batch_size=100
+                 batch_size=100,
+                 save_interval=1000
                  ):
 
         self.name = name
+        self.directory = f'./{self.name}/'
         self.latent_size = latent_size
         self.gen_vec_size = gen_vec_size
         self.lr = lr
@@ -151,6 +153,7 @@ class DCGANTraining:
         self.decay_multiplier = decay_multiplier
         self.train_steps = train_steps
         self.batch_size = batch_size
+        self.save_interval = save_interval
 
         self.discriminator = None
         self.generator = None
@@ -186,14 +189,15 @@ class DCGANTraining:
     def train_models(self):
         # preparing training data
         sample_generator = DataGenerator()
-        x_noise, y_target_sample = next(iter(sample_generator))  # x_noise.shape == y_target_sample.shape == (100,1)
+        x_train_noise, y_target_sample = next(iter(sample_generator))  # x_train_noise.shape == y_target_sample.shape == (100,1)
+        x_test_noise = np.random.uniform(-1.0, 1.0, size=[100, self.latent_size])
         train_size = y_target_sample.shape[0]
         # training process
         for i in range(self.train_steps):
             # making real and fake distributions
             rand_indexes = np.random.randint(0, train_size, size=self.batch_size)
             real_distribution = np.array(y_target_sample[rand_indexes])  # 100 random indexes in 100-elements array. WTF
-            fake_distribution = self.generator.predict(x_noise)
+            fake_distribution = self.generator.predict(x_train_noise)
             # preparing training data for discriminator
             x_train_dis = np.concatenate((real_distribution, fake_distribution))
             y_train_dis = np.ones([2 * self.batch_size, 1])
@@ -212,23 +216,40 @@ class DCGANTraining:
                                                                                              adv_loss, adv_acc)
             print(log)
 
-    def create_callback(self,
-                        log_folder='./one_dim_GAN/logs/',
-                        ):
+            if (i + 1) % self.save_interval == 0:
+                self.save_results(x_test_noise, step=i+1)
+
+            self.dis_callback.on_epoch_end(None)
+            self.adv_callback.on_epoch_end(None)
+
+    def create_callback(self):
 
         self.dis_callback = TensorBoard(
-            log_dir=log_folder + 'dis_callback',
+            log_dir=self.directory + 'logs/dis_callback',
             histogram_freq=0,
             batch_size=self.batch_size
         )
         self.adv_callback = TensorBoard(
-            log_dir=log_folder + 'adv_callback',
+            log_dir=self.directory + 'logs/adv_callback',
             histogram_freq=0,
             batch_size=self.batch_size
         )
 
         self.dis_callback.set_model(self.discriminator)
         self.adv_callback.set_model(self.adversarial)
+
+    def save_results(self,
+                     x_noise,
+                     step=0):
+        os.makedirs(f'{self.directory}img/' + self.name, exist_ok=True)
+        img_name = os.path.join(f'{self.directory}img/' + self.name, "%05d.png" % step)
+        gen_predict = self.generator.predict(x_noise)
+        plt.scatter(gen_predict[:, 0], np.zeros(gen_predict.shape[0]), marker='|')
+        plt.xlim([-4, 4])
+        plt.savefig(img_name)
+        plt.close('all')
+
+        self.generator.save(f'{self.directory + self.name}.h5')
 
 
 def named_logs(model, logs):
