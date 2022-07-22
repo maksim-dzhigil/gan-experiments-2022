@@ -1,6 +1,6 @@
 import unittest
 
-from kosta_oop import GeneratorDense, DiscriminatorDense, AdversarialNetwork, DataGenerator, DCGANTraining
+from kosta_oop import GeneratorDense, DiscriminatorDense, AdversarialNetwork, DataGeneratorForGAN, DCGANTraining
 from tensorflow.keras.models import Model
 import tensorflow as tf
 
@@ -23,14 +23,16 @@ class MyTestCase(unittest.TestCase):
         self.assertIsInstance(model, DiscriminatorDense)
 
     def test_AdversarialNetwork(self):
-        model = AdversarialNetwork()
+        d = DiscriminatorDense()
+        g = GeneratorDense()
+        model = AdversarialNetwork(d,g)
         model.build(input_shape=(None, 1))
         model.call(tf.keras.layers.Input(shape=(1,)))
         model.summary()
         self.assertIsInstance(model, AdversarialNetwork)
 
     def test_DataGenerator(self):
-        dg = DataGenerator()
+        dg = DataGeneratorForGAN()
         X,Y = dg[0] #next(iter(dg))
         self.assertEqual(X.shape, (100, 1))
         self.assertEqual(Y.shape, (100, 1))

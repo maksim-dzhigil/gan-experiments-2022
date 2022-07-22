@@ -16,20 +16,18 @@ import os
 
 from inspect import signature
 
-
-
 class AdversarialNetwork(tf.keras.Model):
 
     def __init__(self,
-                 name='adv',
-                 generated_object_dim=1,
+                 generator : tf.keras.Model,
+                 discriminator : tf.keras.Model,
+                 name='adv'
                  ):
         super(AdversarialNetwork, self).__init__(name=name)
-        self.generated_object_dim = generated_object_dim
 
-        self.model_generator = GeneratorDense(name=name+"_gen", last_layer_shape=generated_object_dim)
+        self.model_generator = generator
 
-        self.model_discriminator = DiscriminatorDense(name=name+"_dis")
+        self.model_discriminator = discriminator
         self.model_discriminator.trainable = False  # WHY!?!?!?!?!
 
     def call(self,
@@ -48,18 +46,18 @@ class SimpleDenseModel(tf.keras.Model):
     def __init__(self,
                  name,
                  layer_size_list=[8, 8, 8],
-                 last_layer_shape=1,
+                 output_shape_=1,
                  last_layer_activation='linear'
                  ):
         super(SimpleDenseModel, self).__init__(name=name)
         self.layer_size_list = layer_size_list
-        self.last_layer_shape = last_layer_shape
+        self.output_shape_ = output_shape_
 
         self.layer_list = []
         for layer_size in layer_size_list:
             self.layer_list.append(Dense(layer_size, activation='relu'))
 
-        self.the_last_layer = Dense(self.last_layer_shape, activation=last_layer_activation)
+        self.the_last_layer = Dense(self.output_shape_, activation=last_layer_activation)
 
     def call(self,
              inputs,
@@ -80,10 +78,10 @@ class GeneratorDense(SimpleDenseModel):
     def __init__(self,
                  name='simple_dense_generator',
                  layer_size_list=[8, 8, 8],
-                 last_layer_shape=1):
+                 output_shape_=1):
         super(GeneratorDense, self).__init__(name=name,
                                              layer_size_list=layer_size_list,
-                                             last_layer_shape=last_layer_shape,
+                                             output_shape_=output_shape_,
                                              last_layer_activation='linear')
 
 
@@ -94,11 +92,11 @@ class DiscriminatorDense(SimpleDenseModel):
                  layer_size_list=[8, 8, 8]):
         super(DiscriminatorDense, self).__init__(name=name,
                                                  layer_size_list=layer_size_list,
-                                                 last_layer_shape=1,
+                                                 output_shape_=1,
                                                  last_layer_activation='sigmoid')
 
 
-class DataGenerator(tf.keras.utils.Sequence):
+class DataGeneratorForGAN(tf.keras.utils.Sequence):
 
     def __init__(self,
                  batch_size=100,
@@ -131,53 +129,55 @@ class DataGenerator(tf.keras.utils.Sequence):
 class DCGANTraining:
 
     def __init__(self,
+                 path_for_output='./',
                  name='one_dim_DCGAN',
                  latent_size=1,
                  gen_vec_size=1,
-                 lr=2e-4,
-                 decay=6e-8,
-                 lr_multiplier=0.5,
-                 decay_multiplier=0.5,
-                 train_steps=10000,
                  batch_size=100,
-                 save_interval=1000
                  ):
 
         self.name = name
-        self.directory = f'./{self.name}/'
+        self.directory = os.path.join(path_for_output, name)
+        self.folder_adv_log = os.path.join(self.directory, 'logs/adv_callback')
+        self.folder_dis_log = os.path.join(self.directory, 'logs/dis_callback')
+        self.folder_img = os.path.join(self.directory, 'img/')
+        self.folder_gen_weights = os.path.join(self.directory, 'gen_weights/')
+        self.folder_dis_weights = os.path.join(self.directory, 'dis_weights/')
+        os.makedirs(self.folder_adv_log, exist_ok=True)
+        os.makedirs(self.folder_dis_log, exist_ok=True)
+        os.makedirs(self.folder_img, exist_ok=True)
+        os.makedirs(self.folder_gen_weights, exist_ok=True)
+        os.makedirs(self.folder_dis_weights, exist_ok=True)
+
+
         self.latent_size = latent_size
         self.gen_vec_size = gen_vec_size
-        self.lr = lr
-        self.decay = decay
-        self.lr_multiplier = lr_multiplier
-        self.decay_multiplier = decay_multiplier
-        self.train_steps = train_steps
         self.batch_size = batch_size
-        self.save_interval = save_interval
 
         self.discriminator = None
         self.generator = None
         self.adversarial = None
-        self.sample_generator = DataGenerator()
+        self.sample_generator = DataGeneratorForGAN()
 
         self.dis_callback = None
         self.adv_callback = None
 
-        self.build_models()  # is it worth?
-        self.create_callback()
-
-    def build_models(self):
+    def build_models(self,
+                     lr=2e-4,
+                     decay=6e-8,
+                     lr_multiplier=0.5,
+                     decay_multiplier=0.5,):
         # instances creation
-        self.discriminator = DiscriminatorDense()
-        self.generator = GeneratorDense()
-        self.adversarial = AdversarialNetwork()
+        self.discriminator = DiscriminatorDense(name=self.name+"_dis")
+        self.generator = GeneratorDense(name=self.name+"_gen", output_shape_=self.gen_vec_size)
+        self.adversarial = AdversarialNetwork(self.generator, self.discriminator)
         # building models
         self.discriminator.build(input_shape=(None, self.gen_vec_size))
         self.generator.build(input_shape=(None, self.latent_size))
         self.adversarial.build(input_shape=(None, self.latent_size))
         # preparing optimizers
-        dis_optimizer = RMSprop(learning_rate=self.lr, decay=self.decay)
-        adv_optimizer = RMSprop(learning_rate=self.lr*self.lr_multiplier, decay=self.decay*self.decay_multiplier)
+        dis_optimizer = RMSprop(learning_rate=lr, decay=decay)
+        adv_optimizer = RMSprop(learning_rate=lr*lr_multiplier, decay=decay*decay_multiplier)
         # models compiling
         self.discriminator.compile(loss='binary_crossentropy',
                                    optimizer=dis_optimizer,
@@ -186,17 +186,23 @@ class DCGANTraining:
                                  optimizer=adv_optimizer,
                                  metrics=['accuracy'])
 
-    def train_models(self):
+        self._create_callback()
+
+    def train_models(self,
+                     train_gen : tf.keras.utils.Sequence,
+                     test_gen : tf.keras.utils.Sequence,
+                     train_steps = 10000,
+                     save_interval = 500,
+                     ):
         # preparing training data
-        sample_generator = DataGenerator()
-        x_train_noise, y_target_sample = next(iter(sample_generator))  # x_train_noise.shape == y_target_sample.shape == (100,1)
-        x_test_noise = np.random.uniform(-1.0, 1.0, size=[100, self.latent_size])
-        train_size = y_target_sample.shape[0]
+        x_train_noise, y_train_sample = next(iter(train_gen))  # x_train_noise.shape == y_target_sample.shape == (100,1)
+        x_test_noise, _ = next(iter(test_gen))
+        train_size = y_train_sample.shape[0]
         # training process
-        for i in range(self.train_steps):
+        for i in range(train_steps):
             # making real and fake distributions
             rand_indexes = np.random.randint(0, train_size, size=self.batch_size)
-            real_distribution = np.array(y_target_sample[rand_indexes])  # 100 random indexes in 100-elements array. WTF
+            real_distribution = np.array(y_train_sample[rand_indexes])  # 100 random indexes in 100-elements array. WTF
             fake_distribution = self.generator.predict(x_train_noise)
             # preparing training data for discriminator
             x_train_dis = np.concatenate((real_distribution, fake_distribution))
@@ -216,21 +222,21 @@ class DCGANTraining:
                                                                                              adv_loss, adv_acc)
             print(log)
 
-            if (i + 1) % self.save_interval == 0:
-                self.save_results(x_test_noise, step=i+1)
+            if (i + 1) % save_interval == 0:
+                self._save_results(x_test_noise, step=i+1)
 
             self.dis_callback.on_epoch_end(None)
             self.adv_callback.on_epoch_end(None)
 
-    def create_callback(self):
+    def _create_callback(self):
 
         self.dis_callback = TensorBoard(
-            log_dir=self.directory + 'logs/dis_callback',
+            log_dir=self.folder_dis_log,
             histogram_freq=0,
             batch_size=self.batch_size
         )
         self.adv_callback = TensorBoard(
-            log_dir=self.directory + 'logs/adv_callback',
+            log_dir=self.folder_adv_log,
             histogram_freq=0,
             batch_size=self.batch_size
         )
@@ -238,18 +244,20 @@ class DCGANTraining:
         self.dis_callback.set_model(self.discriminator)
         self.adv_callback.set_model(self.adversarial)
 
-    def save_results(self,
+    def _save_results(self,
                      x_noise,
-                     step=0):
-        os.makedirs(f'{self.directory}img/' + self.name, exist_ok=True)
-        img_name = os.path.join(f'{self.directory}img/' + self.name, "%05d.png" % step)
+                     step):
+
+        img_name = os.path.join(self.folder_img, "%05d.png" % step)
         gen_predict = self.generator.predict(x_noise)
         plt.scatter(gen_predict[:, 0], np.zeros(gen_predict.shape[0]), marker='|')
         plt.xlim([-4, 4])
         plt.savefig(img_name)
         plt.close('all')
 
-        self.generator.save(f'{self.directory + self.name}.h5')
+        # TODO save model structure here
+        self.generator.save(os.join(self.folder_gen_weights, "%05d.h5" % step))
+        self.discriminator.save(os.join(self.folder_dis_weights, "%05d.h5" % step))
 
 
 def named_logs(model, logs):
@@ -260,5 +268,10 @@ def named_logs(model, logs):
 
 
 if __name__ == '__main__':
+
     dcgan = DCGANTraining()
-    dcgan.train_models()
+    dcgan.build_models()
+
+    train_gen = DataGeneratorForGAN()
+    test_gen = DataGeneratorForGAN()
+    dcgan.train_models(train_gen, test_gen)
