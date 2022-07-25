@@ -24,9 +24,9 @@ class ImageGeneratorBasic(tf.keras.Model):
 
     def __init__(self,
                  name='generator',
-                 image_size =28,
-                 kernel_size = 5,
-                 layer_filters = (128, 64, 32, 1)
+                 image_size=28,
+                 kernel_size=5,
+                 layer_filters=(128, 64, 32, 1)
                  ):
 
         super(ImageGeneratorBasic, self).__init__(name=name)
@@ -38,6 +38,7 @@ class ImageGeneratorBasic(tf.keras.Model):
         self.layer_020_reshape = Reshape((self.image_resize, self.image_resize, layer_filters[0]))
 
         self.block_dict = {}
+
         for ind, filters in enumerate(self.layer_filters):
             if filters > layer_filters[-2]:
                 strides = 2
@@ -68,6 +69,7 @@ class ImageGeneratorBasic(tf.keras.Model):
                 x = layer_(x)
 
         x = self.layer_050_activation(x)
+        print(x.shape)
         return x
 
 
@@ -75,10 +77,9 @@ class ImageDiscriminatorBasic(tf.keras.Model):
 
     def __init__(self,
                  name='discriminator',
-                 # network parameters
                  kernel_size=5,
-                 layer_filters = (32, 64, 128, 256)
-                ):
+                 layer_filters=(32, 64, 128, 256)
+                 ):
 
         super(ImageDiscriminatorBasic, self).__init__(name=name)
         self.kernel_size = kernel_size
@@ -108,6 +109,7 @@ class ImageDiscriminatorBasic(tf.keras.Model):
              mask=None):
 
         x = inputs
+        print(x.shape)
         for ind, filters in enumerate(self.layer_filters):
             for layer_ in self.block_dict[f"block_{ind}"]:
                 x = layer_(x)
@@ -118,20 +120,17 @@ class ImageDiscriminatorBasic(tf.keras.Model):
         return x
 
 
-
 class AdversarialNetwork(tf.keras.Model):
 
     def __init__(self,
-                 generator : tf.keras.Model,
-                 discriminator : tf.keras.Model,
+                 generator: tf.keras.Model,
+                 discriminator: tf.keras.Model,
                  name='adv'
                  ):
         super(AdversarialNetwork, self).__init__(name=name)
 
         self.model_generator = generator
-
         self.model_discriminator = discriminator
-        self.model_discriminator.trainable = False  # WHY!?!?!?!?!
 
     def call(self,
              inputs,
@@ -243,7 +242,7 @@ class DataGeneratorForDenseGAN(tf.keras.utils.Sequence):
     def __init__(self,
                  batch_size=100,
                  latent_space_size=1,
-                 noise_only = False
+                 noise_only=False
                  ):
 
         self.batch_size = batch_size
@@ -298,7 +297,6 @@ class DCGANTraining:
         os.makedirs(self.folder_gen_weights, exist_ok=True)
         os.makedirs(self.folder_dis_weights, exist_ok=True)
 
-
         self.latent_size = latent_size
         self.gen_vec_size = gen_vec_size
 
@@ -317,21 +315,21 @@ class DCGANTraining:
                      decay=6e-8,
                      lr_multiplier=0.5,
                      decay_multiplier=0.5,):
-        # instances creation
+
         self.generator = generator  # GeneratorDense(name=self.name+"_gen", output_shape_=self.gen_vec_size)
-        self.discriminator = discriminator # DiscriminatorDense(name=self.name+"_dis")
-        self.adversarial = AdversarialNetwork(self.generator, self.discriminator)
-        # building models
         self.generator.build(input_shape=self.latent_size)
+
+        self.discriminator = discriminator  # DiscriminatorDense(name=self.name+"_dis")
         self.discriminator.build(input_shape=self.gen_vec_size)
-        self.adversarial.build(input_shape=self.latent_size)
-        # preparing optimizers
         dis_optimizer = RMSprop(learning_rate=lr, decay=decay)
-        adv_optimizer = RMSprop(learning_rate=lr*lr_multiplier, decay=decay*decay_multiplier)
-        # models compiling
         self.discriminator.compile(loss='binary_crossentropy',
                                    optimizer=dis_optimizer,
                                    metrics=['accuracy'])
+        self.discriminator.trainable = False  # WHY!?!?!?!?!
+
+        self.adversarial = AdversarialNetwork(self.generator, self.discriminator)
+        self.adversarial.build(input_shape=self.latent_size)
+        adv_optimizer = RMSprop(learning_rate=lr*lr_multiplier, decay=decay*decay_multiplier)
         self.adversarial.compile(loss='binary_crossentropy',
                                  optimizer=adv_optimizer,
                                  metrics=['accuracy'])
@@ -342,11 +340,11 @@ class DCGANTraining:
                      train_datagen_gen : tf.keras.utils.Sequence,
                      train_datagen_adv: tf.keras.utils.Sequence,
                      test_gen : tf.keras.utils.Sequence,
-                     train_steps = 10000,
-                     save_interval = 500,
+                     train_steps=10000,
+                     save_interval=500,
                      ):
         # preparing training data
-        x_train_noise, y_train_sample = next(iter(train_datagen_gen))  # x_train_noise.shape == y_target_sample.shape == (100,1)
+        x_train_noise, y_train_sample = next(iter(train_datagen_gen))
         train_datagen_adv.noise_only = True
         x_noise_for_adv = next(iter(train_datagen_adv))
         x_test_noise, _ = next(iter(test_gen))
@@ -393,8 +391,8 @@ class DCGANTraining:
         self.adv_callback.set_model(self.adversarial)
 
     def _save_results(self,
-                     x_noise,
-                     step):
+                      x_noise,
+                      step):
 
         img_name = os.path.join(self.folder_img, "%05d.png" % step)
         gen_predict = self.generator.predict(x_noise)
@@ -411,7 +409,7 @@ class DCGANTraining:
             rows = int(math.sqrt(x_noise.shape[0]))
             for i in range(gen_predict.shape[0]):
                 plt.subplot(rows, rows, i + 1)
-                plt.imshow(gen_predict[i,:,:,0], cmap='gray')
+                plt.imshow(gen_predict[i, :, :, 0], cmap='gray')
                 plt.axis('off')
             plt.savefig(img_name)
             plt.close('all')
