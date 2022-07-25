@@ -1,5 +1,8 @@
+import sys
+
 from matplotlib import pyplot as plt
 import tensorflow as tf
+import numpy as np
 
 from tensorflow import keras
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
@@ -7,15 +10,30 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Activation, Dense, Reshape, \
     BatchNormalization, Conv2DTranspose, LeakyReLU, Conv2D, Flatten
 
+from tensorflow.keras.optimizers import RMSprop
+
 from datetime import datetime
 from json import loads
 from pathlib import Path
 import os
+import math
 
 from tensorflow.keras.datasets import mnist
 
 
 # %%
+
+class AbstractDescriminator(Model):
+
+    def __init__(self, *kargs, **kvargs):
+        super(AbstractDescriminator, self).__init__(*kargs, **kvargs)
+
+class AbstractGenerator(Model):
+
+    def __init__(self, *kargs, **kvargs):
+        super(AbstractGenerator, self).__init__(*kargs, **kvargs)
+
+
 
 
 class PrepareTrainData:
@@ -24,7 +42,7 @@ class PrepareTrainData:
                  dataset_name: str = 'mnist',
                  path: Path = Path(__file__).parent.absolute(),
                  buffer_size: int = 60000,
-                 batch_size: int = 32):
+                 batch_size: int = 100): # batch_size: int = 32):
         self.dataset_path = os.path.join(path, dataset_name, '.npz')
         self.buffer_size = buffer_size
         self.batch_size = batch_size
@@ -55,7 +73,7 @@ def load_dataset(
         dataset: str = "mnist",
         dataset_save_path: Path = Path(__file__).parent.absolute(),
         buffer_size: int = 60000,
-        batch_size: int = 32
+        batch_size: int = 100 #batch_size: int = 32
 ):
     train_dataset = DATASET_FUNCTION[dataset](
         data_path = dataset_save_path / "data" / f"{dataset}.npz",
@@ -68,7 +86,7 @@ def load_dataset(
 # %%
 
 
-class ImageDiscriminatorFromBook(Model):
+class ImageDiscriminatorFromBook(AbstractDescriminator):
 
     def __init__(self,
                  model_name: str = 'discriminator',
@@ -90,8 +108,8 @@ class ImageDiscriminatorFromBook(Model):
         self.blocks = {}
 
         for index, filters in enumerate(self.layer_filters):
-            strides = self.strides[index]
-            self.bloks[f'block_{index + 1}'] = [
+            strides = self.layer_strides[index]
+            self.blocks[f'block_{index + 1}'] = [
                 LeakyReLU(alpha=self.leaky_relu_ratio),
                 Conv2D(filters=filters,
                        kernel_size=self.kernel_size,
@@ -110,7 +128,7 @@ class ImageDiscriminatorFromBook(Model):
              mask=None):
 
         for index, filters in enumerate(self.layer_filters):
-            for layer_ in self.block_dict[f"block_{index + 1}"]:
+            for layer_ in self.blocks[f"block_{index + 1}"]:
                 x = layer_(x)
                 if training:
                     x = tf.nn.dropout(x, 0.3)
@@ -127,7 +145,7 @@ class ImageDiscriminatorFromBook(Model):
 # + там вообще не используется активация последнего слоя
 
 
-class ImageGeneratorFromBook(Model):
+class ImageGeneratorFromBook(AbstractGenerator):
 
     def __init__(self,
                  model_name: str = 'generator',
@@ -150,8 +168,8 @@ class ImageGeneratorFromBook(Model):
         self.blocks = {}
 
         for index, filters in enumerate(self.layer_filters):
-            strides = self.strides[index]
-            self.bloks[f'block_{index + 1}'] = [
+            strides = self.layer_strides[index]
+            self.blocks[f'block_{index + 1}'] = [
                 BatchNormalization(name=f'batch_norm_{index + 1}'),
                 LeakyReLU(alpha=self.leaky_relu_ratio),
                 Conv2DTranspose(filters=filters,
@@ -174,7 +192,7 @@ class ImageGeneratorFromBook(Model):
         x = self.input_reshape(x)
 
         for index, filters in enumerate(self.layer_filters):
-            for layer_ in self.block_dict[f"block_{index + 1}"]:
+            for layer_ in self.blocks[f"block_{index + 1}"]:
                 x = layer_(x)
 
         x = self.output_activation(x)
@@ -185,7 +203,7 @@ class ImageGeneratorFromBook(Model):
 # %%
 
 
-class DiscriminatorFromGithub(keras.Model):
+class DiscriminatorFromGithub(AbstractDescriminator):
     def __init__(self):
         super(DiscriminatorFromGithub, self).__init__()
         self.conv1 = keras.layers.Conv2D(64, (5, 5), strides=(2, 2),
@@ -217,7 +235,7 @@ class DiscriminatorFromGithub(keras.Model):
 #%%
 
 
-class GeneratorFromGithub(keras.Model):
+class GeneratorFromGithub(AbstractGenerator):
 
     def __init__(self):
         super(GeneratorFromGithub, self).__init__()
@@ -326,13 +344,16 @@ class AdversarialNetwork(Model):
                  generator: Model,
                  discriminator: Model,
                  latent_dim: int,
-                 model_name: str = 'adversarial_network'
+                 model_name: str = 'adversarial_network',
+                 batch_size: int = 100 #32
                  ):
         super(AdversarialNetwork, self).__init__()
         self.generator = generator
         self.discriminator = discriminator
         self.latent_dim = latent_dim
         self.model_name = model_name
+        self.batch_size = batch_size
+        print("BS:", self.batch_size)
 
         self.d_optimizer = None
         self.g_optimizer = None
@@ -348,18 +369,27 @@ class AdversarialNetwork(Model):
         self.g_optimizer = g_optimizer
         self.loss_fn = loss_fn
 
+
+    #@tf.function( input_signature=[tf.TensorSpec(shape=(self.batch_size, sdfsdfsdf), dtype=tf.float32)])
     @tf.function
     def train_step(self, data):
-
+        print('*****start*****')
         real_images = data
-        batch_size = 32  # то самое проблемное место
-        random_latent_vectors = tf.random.normal(shape=(batch_size, self.latent_dim))
+        random_latent_vectors = tf.random.normal(shape=(self.batch_size, self.latent_dim))
 
         generated_images = self.generator(random_latent_vectors)
         combined_images = tf.concat([generated_images, real_images], axis=0)
+        #tf.print(combined_images.shape, output_stream=sys.stderr)
 
-        labels = tf.concat([tf.ones((batch_size, 1)),
-                            tf.zeros((batch_size, 1))], axis=0)
+
+        print("fsdfdsfsd ", generated_images.shape, real_images.shape)
+        print("real ", real_images.shape)
+        print("gener ", generated_images.shape)
+        labels = tf.concat([tf.ones((self.batch_size, 1)),
+                            tf.zeros((self.batch_size, 1))], axis=0)
+
+        print("labels ", labels.shape)
+        print("combined ", combined_images.shape)
 
         labels += 0.05 * tf.random.uniform(tf.shape(labels))
 
@@ -370,8 +400,10 @@ class AdversarialNetwork(Model):
         grads = tape.gradient(d_loss, self.discriminator.trainable_weights)
         self.d_optimizer.apply_gradients(zip(grads, self.discriminator.trainable_weights))
 
-        random_latent_vectors = tf.random.normal(shape=(batch_size, self.latent_dim))
-        misleading_labels = tf.zeros((batch_size, 1))
+        random_latent_vectors = tf.random.normal(shape=(self.batch_size, self.latent_dim))
+        misleading_labels = tf.zeros((self.batch_size, 1))
+
+        print('***still_fine****')
 
         with tf.GradientTape() as tape:
             predictions = self.discriminator(self.generator(random_latent_vectors))
@@ -379,7 +411,7 @@ class AdversarialNetwork(Model):
 
         grads = tape.gradient(g_loss, self.generator.trainable_weights)
         self.g_optimizer.apply_gradients(zip(grads, self.generator.trainable_weights))
-
+        print('*****end*****')
         return {"d_loss": d_loss, "g_loss": g_loss}
 
 
@@ -390,35 +422,129 @@ def loss_fn(labels, output):
     return keras.losses.BinaryCrossentropy(from_logits=True)(labels, output)
 
 
-def prepare_data():
-    ptd = PrepareTrainData()
-    return ptd.x_train
+#%%
+
+
+class DCGANTraining:
+
+    def __init__(self,
+                 path_for_output='./',
+                 name='one_dim_DCGAN',
+                 latent_size=(None, 1),
+                 gen_vec_size=(None, 1),
+                 ):
+
+        self.name = name
+        self.directory = os.path.join(path_for_output, name)
+        self.folder_adv_log = os.path.join(self.directory, 'logs/adv_callback')
+        self.folder_dis_log = os.path.join(self.directory, 'logs/dis_callback')
+        self.folder_img = os.path.join(self.directory, 'img/')
+        self.folder_gen_weights = os.path.join(self.directory, 'gen_weights/')
+        self.folder_dis_weights = os.path.join(self.directory, 'dis_weights/')
+        os.makedirs(self.folder_adv_log, exist_ok=True)
+        os.makedirs(self.folder_dis_log, exist_ok=True)
+        os.makedirs(self.folder_img, exist_ok=True)
+        os.makedirs(self.folder_gen_weights, exist_ok=True)
+        os.makedirs(self.folder_dis_weights, exist_ok=True)
+
+        self.latent_size = latent_size
+        self.gen_vec_size = gen_vec_size
+
+        self.discriminator = None
+        self.generator = None
+        self.adversarial = None
+
+        self.dis_callback = None
+        self.adv_callback = None
+
+    def build_models(self,
+                     generator,
+                     discriminator,
+                     lr=2e-4,
+                     decay=6e-8,
+                     lr_multiplier=0.5,
+                     decay_multiplier=0.5,):
+
+        self.generator = generator  # GeneratorDense(name=self.name+"_gen", output_shape_=self.gen_vec_size)
+        self.generator.build(input_shape=self.latent_size)
+
+        self.discriminator = discriminator  # DiscriminatorDense(name=self.name+"_dis")
+        self.discriminator.build(input_shape=self.gen_vec_size)
+
+        self._create_callback()
+
+
+    def _create_callback(self):
+
+        self.dis_callback = TensorBoard(
+            log_dir=self.folder_dis_log,
+            histogram_freq=0
+        )
+        self.adv_callback = TensorBoard(
+            log_dir=self.folder_adv_log,
+            histogram_freq=0
+        )
+
+        self.dis_callback.set_model(self.discriminator)
+        self.adv_callback.set_model(self.adversarial)
+
+    def _save_results(self,
+                      x_noise,
+                      step):
+
+        img_name = os.path.join(self.folder_img, "%05d.png" % step)
+        gen_predict = self.generator.predict(x_noise)
+
+        if gen_predict.ndim == 2:
+            plt.scatter(gen_predict[:, 0], np.zeros(gen_predict.shape[0]), marker='|')
+            plt.xlim([-4, 4])
+            plt.savefig(img_name)
+            plt.close('all')
+
+        elif gen_predict.ndim == 4:
+
+            plt.figure(figsize=(2.2, 2.2))
+            rows = int(math.sqrt(x_noise.shape[0]))
+            for i in range(gen_predict.shape[0]):
+                plt.subplot(rows, rows, i + 1)
+                plt.imshow(gen_predict[i, :, :, 0], cmap='gray')
+                plt.axis('off')
+            plt.savefig(img_name)
+            plt.close('all')
+
+
+        # TODO save model structure here
+        self.generator.save(os.path.join(self.folder_gen_weights, "%05d" % step), save_format='tf')
+        self.discriminator.save(os.path.join(self.folder_dis_weights, "%05d" % step), save_format='tf')
+
+
+def named_logs(model, logs):
+    result = {}
+    for log in zip(model.metrics_names, logs):
+        result[log[0]] = log[1]
+    return result
 
 
 #%%
 
 
-def testing_github_gan(x_train, path: Path = None):
-
-    if not path:
-        train_dataset = load_dataset(dataset='mnist', buffer_size=60000, batch_size=32)
-    else:
-        train_dataset = load_dataset(dataset='mnist', dataset_save_path=Path(path),
-                                     buffer_size=60000, batch_size=32)
+def testing_github_gan(x_train,
+                       generator : AbstractGenerator,
+                       discriminator: AbstractDescriminator,
+                       path: Path = Path('./GAN_with_sep_batches'),
+                       latent_dim=100,
+                       batch_size=100): # batch_size=32):
 
     generator_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.05)
     discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.05)
 
-    latent_dim = 100
     save_models = True
     epochs = 2
 
-    discriminator = DiscriminatorFromGithub()
-    generator = GeneratorFromGithub()
-    gan = AdversarialNetwork(generator, discriminator, latent_dim)
+    gan = AdversarialNetwork(generator, discriminator, latent_dim, batch_size=batch_size)
     gan.compile(discriminator_optimizer, generator_optimizer, loss_fn)
 
-    gan_home_path = Path('./GAN_with_sep_batches')
+    gan_home_path = path
     current_time = datetime.now().strftime("%Y%m%d%H%M%S")
 
     callbacks = []
@@ -431,6 +557,7 @@ def testing_github_gan(x_train, path: Path = None):
         model_checkpoint_callback = ModelCheckpoint(filepath=checkpoint_filepath)
         callbacks.append(model_checkpoint_callback)
 
+    #print("shape", next(iter(dgf))[0].shape)
     _history = gan.fit(x_train, epochs=epochs, callbacks=callbacks)
 
     generator.save(os.path.join(gan_home_path, "saved_models", current_time, f"generator_mnist_{epochs}"))
@@ -440,24 +567,64 @@ def testing_github_gan(x_train, path: Path = None):
 #%%
 
 
-def testing_gan_from_book(x_train):
+class DataGeneratorForDenseGAN(tf.keras.utils.Sequence):
 
-    name = 'basic'
-    dis = ImageDiscriminatorFromBook(name=name + "_dis")
-    gen = ImageGeneratorFromBook(name=name + "_gen")
+    def __init__(self,
+                 batch_size=100,
+                 latent_space_size=1,
+                 noise_only=False
+                 ):
 
+        self.batch_size = batch_size
+        self.latent_space_size = latent_space_size
+        self.noise_only = noise_only
 
+    def __len__(self):
+        return 1
 
-#%%
+    def on_epoch_end(self):
+        pass
 
+    def __getitem__(self, index):
 
-def testing_one_dim_gan():
-    pass
+        if self.noise_only:
+            X_noise = np.random.uniform(-1.0, 1.0, size=[self.batch_size, self.latent_space_size])
+
+            return X_noise
+        else:
+            X_noise = np.random.uniform(-1.0, 1.0, size=[self.batch_size, self.latent_space_size])
+
+            init_sampling = np.random.normal(0, 1, size=100000)
+            Y_target_sampling = init_sampling[(init_sampling < -3) |
+                                              ((-2 < init_sampling) & (init_sampling < -1)) |
+                                              ((0 < init_sampling) & (init_sampling < 1)) |
+                                              ((2 < init_sampling) & (init_sampling < 3))]
+
+            Y_target_sampling = np.random.choice(Y_target_sampling, 100)[:, np.newaxis]
+
+            return X_noise, Y_target_sampling
+
 
 
 #%%
 
 if __name__ == '__main__':
     ptd = PrepareTrainData()
-    x_train = ptd.x_train
-    testing_github_gan(x_train)
+
+    img_train = ptd.x_train
+    dgf = DataGeneratorForDenseGAN()
+    _, one_dim_train = next(iter(dgf))
+    experiment = 'one_dim'
+
+    if experiment == 'github':
+        discriminator = DiscriminatorFromGithub()
+        generator = GeneratorFromGithub()
+        testing_github_gan(img_train, generator, discriminator)
+    elif experiment == 'book':
+        discriminator = ImageDiscriminatorFromBook()
+        generator = ImageGeneratorFromBook()
+        testing_github_gan(img_train, generator, discriminator)
+    elif experiment == 'one_dim':
+        discriminator = OneDimDiscriminatorDense()
+        generator = OneDimGeneratorDense()
+        testing_github_gan(one_dim_train, generator, discriminator, latent_dim=1, batch_size=100)
