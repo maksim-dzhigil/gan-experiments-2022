@@ -42,7 +42,7 @@ class PrepareTrainData:
                  dataset_name: str = 'mnist',
                  path: Path = Path(__file__).parent.absolute(),
                  buffer_size: int = 60000,
-                 batch_size: int = 100): # batch_size: int = 32):
+                 batch_size: int = 100):  # batch_size: int = 32):
         self.dataset_path = os.path.join(path, dataset_name, '.npz')
         self.buffer_size = buffer_size
         self.batch_size = batch_size
@@ -219,7 +219,10 @@ class DiscriminatorFromGithub(AbstractDescriminator):
         self.dense = keras.layers.Dense(1, name="OutputDense")
 
 
-    def call(self, x, training=False):
+    def call(self,
+             x,
+             training=False,
+             mask=None):
         x = tf.nn.leaky_relu(self.conv1(x))
         if training:
             x = tf.nn.dropout(x, 0.3)
@@ -254,7 +257,10 @@ class GeneratorFromGithub(AbstractGenerator):
         self.conv2dt3 = keras.layers.Conv2DTranspose(1, (5, 5), strides=(2, 2), padding="same", use_bias=False, activation="tanh", name="Con2DTranspose3")
 
 
-    def call(self, x):
+    def call(self,
+             x,
+             training=False,
+             mask=None):
         x = self.dense(x)
         x = tf.nn.leaky_relu(self.bn0(x))
 
@@ -614,7 +620,7 @@ if __name__ == '__main__':
     img_train = ptd.x_train
     dgf = DataGeneratorForDenseGAN()
     _, one_dim_train = next(iter(dgf))
-    experiment = 'one_dim'
+    experiment = 'github'
 
     if experiment == 'github':
         discriminator = DiscriminatorFromGithub()

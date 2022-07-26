@@ -339,7 +339,7 @@ class DCGANTraining:
     def train_models(self,
                      train_datagen_gen : tf.keras.utils.Sequence,
                      train_datagen_adv: tf.keras.utils.Sequence,
-                     test_gen : tf.keras.utils.Sequence,
+                     test_gen: tf.keras.utils.Sequence,
                      train_steps=10000,
                      save_interval=500,
                      ):
