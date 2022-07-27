@@ -301,7 +301,7 @@ class AdversarialNetwork(Model):
                  discriminator: AbstractDiscriminator,
                  latent_dim: int,
                  model_name: str = 'adversarial_network',
-                 batch_size: int = 100  # 32
+                 batch_size: int = 100,  # 32
                  ):
         super(AdversarialNetwork, self).__init__()
         self.generator = generator
@@ -335,12 +335,10 @@ class AdversarialNetwork(Model):
 
         labels = tf.concat([tf.ones((self.batch_size, 1)),
                             tf.zeros((self.batch_size, 1))], axis=0)
-
         labels += 0.05 * tf.random.uniform(tf.shape(labels))
 
         with tf.GradientTape() as tape:
             predictions = self.discriminator(combined_images, training=True)
-
             d_loss = self.loss_fn(labels, predictions)
 
         grads = tape.gradient(d_loss, self.discriminator.trainable_weights)
@@ -355,6 +353,8 @@ class AdversarialNetwork(Model):
 
         grads = tape.gradient(g_loss, self.generator.trainable_weights)
         self.g_optimizer.apply_gradients(zip(grads, self.generator.trainable_weights))
+
+
 
         return {"d_loss": d_loss, "g_loss": g_loss}
 
@@ -419,6 +419,53 @@ class PrepareTrainData:
         return x_train
 
 
+#%%
+
+class SaveResultsCallback(tf.keras.callbacks.Callback):
+    def __init__(self,
+                 saving_period: int = 5,
+                 saving_path: Path = Path(__file__).parent.absolute()
+                 ):
+        super(SaveResultsCallback, self).__init__()
+        self.saving_period = saving_period
+        self.img_saving_path = Path.joinpath(saving_path, 'img/')
+        self.models_saving_path = Path.joinpath(saving_path, 'models/')
+
+    def on_epoch_end(self, epoch, logs=None):
+        if (epoch + 1) % self.saving_period == 0:
+            self._saving_images(epoch)
+            self._saving_models(epoch)
+
+    def _saving_images(self,
+                       epoch: int):
+        img_name = Path.joinpath(self.img_saving_path, "%05d.png" % (epoch + 1))
+        noise = tf.random.normal(shape=(self.model.batch_size, self.model.latent_dim))
+        gen_predict = self.model.generator.predict(noise)
+        if gen_predict.ndim == 2:
+            plt.scatter(gen_predict[:, 0], np.zeros(gen_predict.shape[0]))
+            plt.xlim([-4, 4])
+            plt.savefig(img_name)
+            plt.close('all')
+
+        elif gen_predict.ndim == 4:
+            plt.figure(figsize=(2.2, 2.2))
+            rows = int(math.sqrt(noise.shape[0]))
+            for i in range(gen_predict.shape[0]):
+                plt.subplot(rows, rows, i+1)
+                plt.imshow(gen_predict[i, :, :, 0], cmap='gray')
+                plt.axis('off')
+            plt.savefig(img_name)
+            plt.close('all')
+
+    def _saving_models(self,
+                       epoch: int):
+        dis_name = Path.joinpath(self.models_saving_path, "%05d_discriminator" % (epoch + 1))
+        gen_name = Path.joinpath(self.models_saving_path, "%05d_generator" % (epoch + 1))
+
+        self.model.discriminator.save(dis_name, save_format='tf')
+        self.model.generator.save(gen_name, save_format='tf')
+
+
 # %%
 
 def testing_gan(x_train,
@@ -429,66 +476,55 @@ def testing_gan(x_train,
                 dis_optimizer: tf.keras.optimizers = None,
                 latent_dim: int = 100,
                 batch_size: int = 32,
-                save_models: bool = True,
                 epochs: int = 2,
-                experiment: str = ''
+                experiment: str = '',
+                callbacks: tf.keras.callbacks = None
                 ):
 
     directory = os.path.join(gan_home_path, experiment)
     folder_adv_log = os.path.join(directory, 'logs/adv_callback')
     folder_dis_log = os.path.join(directory, 'logs/dis_callback')
     folder_img = os.path.join(directory, 'img/')
-    folder_gen_weights = os.path.join(directory, 'gen_weights/')
-    folder_dis_weights = os.path.join(directory, 'dis_weights/')
     os.makedirs(folder_adv_log, exist_ok=True)
     os.makedirs(folder_dis_log, exist_ok=True)
     os.makedirs(folder_img, exist_ok=True)
-    os.makedirs(folder_gen_weights, exist_ok=True)
-    os.makedirs(folder_dis_weights, exist_ok=True)
 
     gan = AdversarialNetwork(generator, discriminator, latent_dim, batch_size=batch_size)
     gan.compile(gen_optimizer, dis_optimizer, loss_fn)
 
     current_time = datetime.now().strftime("%Y%m%d%H%M%S")
 
-    callbacks = []
     tensorboard_callback = TensorBoard(log_dir=os.path.join(gan_home_path, "logs", current_time))
 
     callbacks.append(tensorboard_callback)
 
-    if save_models:
-        checkpoint_filepath = Path.joinpath(gan_home_path, "checkpoints", f"mnist_{epochs}_{current_time}",
-                                            "checkpoint")
-        model_checkpoint_callback = ModelCheckpoint(filepath=checkpoint_filepath)
-        callbacks.append(model_checkpoint_callback)
-
     _history = gan.fit(x_train, epochs=epochs, callbacks=callbacks)
-
-    generator.save(folder_gen_weights, save_format='tf')
-    discriminator.save(folder_dis_weights, save_format='tf')
 
 
 # %%
 
 if __name__ == '__main__':
-
-    default_opt = tf.keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.05)
-
-    github_gen_opt = default_opt
-    github_dis_opt = default_opt
-
-    book_gen_opt = default_opt
+    # prepare optimizers for 'github'
+    github_gen_opt = tf.keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.05)
+    github_dis_opt = tf.keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.05)
+    # prepare optimizers for 'book'
+    book_gen_opt = tf.keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.05)
     lr_ratio = 0.5
     decay_ratio = 0.5
     book_dis_opt = RMSprop(learning_rate=(2e-4 * lr_ratio), decay=(6e-8 * decay_ratio))
-
-    one_dim_gen_opt = default_opt
-    one_dim_dis_opt = default_opt
-
+    # prepare optimizers for 'one-dim'
+    one_dim_gen_opt = tf.keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.05)
+    one_dim_dis_opt = tf.keras.optimizers.Adam(learning_rate=0.0002, beta_1=0.05)
+    # prepare train images
     img_data = PrepareTrainData(dataset_name='mnist', batch_size=32).x_train
+    # prepare train distributions
     one_dim_data = PrepareTrainData(dataset_name='one_dim', batch_size=100).x_train
+    # prepare root directory
     dir = Path(__file__).parent.absolute()
-    EXPERIMENT = 'github'
+    # prepare callbacks
+    callbacks = []
+
+    EXPERIMENT = 'one_dim'
 
     if EXPERIMENT == 'github':
         gen = GeneratorFromGithub()
@@ -496,20 +532,24 @@ if __name__ == '__main__':
         experiment_dir = Path.joinpath(dir, EXPERIMENT)
         testing_gan(x_train=img_data, generator=gen, discriminator=dis, gan_home_path=experiment_dir,
                     gen_optimizer=github_gen_opt, dis_optimizer=github_dis_opt,
-                    latent_dim=100, batch_size=32, save_models=True, epochs=2)
+                    latent_dim=100, batch_size=32, epochs=2, callbacks=callbacks)
 
     if EXPERIMENT == 'book':
         gen = ImageGeneratorFromBook()
         dis = ImageDiscriminatorFromBook()
         experiment_dir = Path.joinpath(dir, EXPERIMENT)
+        saving_callback = SaveResultsCallback(saving_path=experiment_dir)
+        callbacks.append(saving_callback)
         testing_gan(x_train=img_data, generator=gen, discriminator=dis, gan_home_path=experiment_dir,
                     gen_optimizer=book_gen_opt, dis_optimizer=book_dis_opt,
-                    latent_dim=100, batch_size=32, save_models=True, epochs=2)
+                    latent_dim=100, batch_size=32, epochs=2, callbacks=callbacks)
 
     if EXPERIMENT == 'one_dim':
         gen = OneDimGenerator()
         dis = OneDimDiscriminator()
         experiment_dir = Path.joinpath(dir, EXPERIMENT)
+        saving_callback = SaveResultsCallback(saving_path=experiment_dir)
+        callbacks.append(saving_callback)
         testing_gan(x_train=one_dim_data, generator=gen, discriminator=dis, gan_home_path=experiment_dir,
                     gen_optimizer=one_dim_gen_opt, dis_optimizer=one_dim_dis_opt,
-                    latent_dim=1, batch_size=100, save_models=True, epochs=2)
+                    latent_dim=1, batch_size=100, epochs=2000, callbacks=callbacks)
