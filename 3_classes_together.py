@@ -423,7 +423,7 @@ class PrepareTrainData:
 
 class SaveResultsCallback(tf.keras.callbacks.Callback):
     def __init__(self,
-                 saving_period: int = 5,
+                 saving_period: int = 500,
                  saving_path: Path = Path(__file__).parent.absolute()
                  ):
         super(SaveResultsCallback, self).__init__()
@@ -527,29 +527,31 @@ if __name__ == '__main__':
     EXPERIMENT = 'one_dim'
 
     if EXPERIMENT == 'github':
-        gen = GeneratorFromGithub()
-        dis = DiscriminatorFromGithub()
+        github_gen = GeneratorFromGithub()
+        github_dis = DiscriminatorFromGithub()
         experiment_dir = Path.joinpath(dir, EXPERIMENT)
-        testing_gan(x_train=img_data, generator=gen, discriminator=dis, gan_home_path=experiment_dir,
+        github_saving_callback = SaveResultsCallback(saving_path=experiment_dir)
+        callbacks.append(github_saving_callback)
+        testing_gan(x_train=img_data, generator=github_gen, discriminator=github_dis, gan_home_path=experiment_dir,
                     gen_optimizer=github_gen_opt, dis_optimizer=github_dis_opt,
                     latent_dim=100, batch_size=32, epochs=2, callbacks=callbacks)
 
     if EXPERIMENT == 'book':
-        gen = ImageGeneratorFromBook()
-        dis = ImageDiscriminatorFromBook()
+        book_gen = ImageGeneratorFromBook()
+        book_dis = ImageDiscriminatorFromBook()
         experiment_dir = Path.joinpath(dir, EXPERIMENT)
-        saving_callback = SaveResultsCallback(saving_path=experiment_dir)
-        callbacks.append(saving_callback)
-        testing_gan(x_train=img_data, generator=gen, discriminator=dis, gan_home_path=experiment_dir,
+        book_saving_callback = SaveResultsCallback(saving_path=experiment_dir)
+        callbacks.append(book_saving_callback)
+        testing_gan(x_train=img_data, generator=book_gen, discriminator=book_dis, gan_home_path=experiment_dir,
                     gen_optimizer=book_gen_opt, dis_optimizer=book_dis_opt,
                     latent_dim=100, batch_size=32, epochs=2, callbacks=callbacks)
 
     if EXPERIMENT == 'one_dim':
-        gen = OneDimGenerator()
-        dis = OneDimDiscriminator()
+        one_dim_gen = OneDimGenerator()
+        one_dim_dis = OneDimDiscriminator()
         experiment_dir = Path.joinpath(dir, EXPERIMENT)
-        saving_callback = SaveResultsCallback(saving_path=experiment_dir)
-        callbacks.append(saving_callback)
-        testing_gan(x_train=one_dim_data, generator=gen, discriminator=dis, gan_home_path=experiment_dir,
+        one_dim_saving_callback = SaveResultsCallback(saving_path=experiment_dir)
+        callbacks.append(one_dim_saving_callback)
+        testing_gan(x_train=one_dim_data, generator=one_dim_gen, discriminator=one_dim_dis, gan_home_path=experiment_dir,
                     gen_optimizer=one_dim_gen_opt, dis_optimizer=one_dim_dis_opt,
                     latent_dim=1, batch_size=100, epochs=2000, callbacks=callbacks)
