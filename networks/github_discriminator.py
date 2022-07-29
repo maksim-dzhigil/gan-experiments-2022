@@ -1,7 +1,7 @@
 from tensorflow.keras.layers import Dense, Conv2D, Flatten
 import tensorflow as tf
 
-from abstract_models import AbstractDiscriminator
+from .abstract_models import AbstractDiscriminator
 
 
 class GithubDiscriminator(AbstractDiscriminator):

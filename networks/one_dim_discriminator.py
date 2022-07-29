@@ -1,4 +1,4 @@
-from abstract_models import AbstractDiscriminator
+from .abstract_models import AbstractDiscriminator
 from tensorflow.keras.layers import Dense
 
 

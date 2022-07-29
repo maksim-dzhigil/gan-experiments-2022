@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, Reshape, Conv2DTranspose, BatchNormalization
 
-from abstract_models import AbstractGenerator
+from .abstract_models import AbstractGenerator
 
 
 class GithubGenerator(AbstractGenerator):

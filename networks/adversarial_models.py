@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from tensorflow.keras.models import Model
 
-from abstract_models import AbstractGenerator, AbstractDiscriminator
+from .abstract_models import AbstractGenerator, AbstractDiscriminator
 
 
 class ConditionalAdversarialNetwork(Model):
@@ -121,8 +121,8 @@ class AdversarialNetwork(Model):
 
     @tf.function
     def train_step(self, data):
-        real_images = data        # for one_dim
-        # real_images, _ = data   # for mnist
+        # real_images = data        # for one_dim
+        real_images, _ = data   # for mnist
         random_latent_vectors = tf.random.normal(shape=(self.batch_size, self.latent_dim))
         generated_images = self.generator(random_latent_vectors)
         combined_images = tf.concat([generated_images, real_images], axis=0)

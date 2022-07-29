@@ -1,7 +1,7 @@
 from tensorflow.keras.layers import Dense, LeakyReLU, BatchNormalization, \
                                     Conv2DTranspose, Reshape, Activation
 
-from abstract_models import AbstractGenerator
+from .abstract_models import AbstractGenerator
 
 
 class GanGenerator(AbstractGenerator):

@@ -1,4 +1,4 @@
-from abstract_models import AbstractGenerator
+from .abstract_models import AbstractGenerator
 from tensorflow.keras.layers import Dense
 
 

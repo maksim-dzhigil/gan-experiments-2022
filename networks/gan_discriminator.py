@@ -1,7 +1,7 @@
 from tensorflow.keras.layers import Dense, Conv2D, Flatten, \
                                     Activation, LeakyReLU
 
-from abstract_models import AbstractDiscriminator
+from .abstract_models import AbstractDiscriminator
 
 
 class GanDiscriminator(AbstractDiscriminator):

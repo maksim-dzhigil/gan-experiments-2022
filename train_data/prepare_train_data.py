@@ -7,8 +7,8 @@ class PrepareTrainData:
     def __init__(self,
                  dataset_name: str = 'mnist',
                  path_to_root: path = path.dirname(__file__),
-                 buffer_size: int = 10000,
-                 batch_size: int = 100):
+                 buffer_size: int = 60000,
+                 batch_size: int = 32):
         self.dataset_name = dataset_name
         self.dataset_path = path.join(path_to_root, 'data', dataset_name)
         self.buffer_size = buffer_size
@@ -22,10 +22,6 @@ class PrepareTrainData:
         self.dataset = datasets[dataset_name]
 
     def _prepare_mnist(self):
-        # if os.path.exists(self.dataset_path):
-        # The function is deprecated. Use tf.data.Dataset.load() instead
-        # return tf.data.experimental.load(self.dataset_path)
-
         (x_train, y_train), (_, _) = tf.keras.datasets.mnist.load_data()
 
         x_train = x_train.reshape(x_train.shape[0], 28, 28, 1).astype('float32')
@@ -39,8 +35,7 @@ class PrepareTrainData:
             .shuffle(self.buffer_size) \
             .batch(self.batch_size)
 
-        tf.data.experimental.save(dataset, self.dataset_path)
-        # dataset.save(self.dataset_path)  # 2.9.1
+        # tf.data.experimental.save(dataset, self.dataset_path)
 
         return dataset
 
@@ -56,6 +51,6 @@ class PrepareTrainData:
             .from_tensor_slices(x_train) \
             .batch(self.batch_size)
 
-        tf.data.experimental.save(dataset, self.dataset_path)
+        # tf.data.experimental.save(dataset, self.dataset_path)
 
         return dataset
