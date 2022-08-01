@@ -5,3 +5,4 @@ from .gan_discriminator import GanDiscriminator
 from .github_discriminator import GithubDiscriminator
 from .one_dim_discriminator import OneDimDiscriminator
 from .adversarial_models import AdversarialNetwork
+from .generator import Generator

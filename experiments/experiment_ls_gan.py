@@ -5,12 +5,12 @@ from networks.gan_discriminator import GanDiscriminator
 from networks.generator import Generator
 from networks.adversarial_models import AdversarialNetwork
 from tools.save_results_callback import SaveResultsCallback
-from tools.utility_functions import binary_cross_entropy
+from tools.utility_functions import mean_squared_error
 from train_data.prepare_train_data import PrepareTrainData
 from os import path
 
 
-def conduct_experiment_dc_gan(gen_optimizer: str = 'adam',
+def conduct_experiment_ls_gan(gen_optimizer: str = 'adam',
                               dis_optimizer: str = 'rmsprop',
                               adam_lr: float = 2e-4,
                               adam_beta_1: float = 0.05,
@@ -29,7 +29,7 @@ def conduct_experiment_dc_gan(gen_optimizer: str = 'adam',
                               dis_layer_filters: tuple = (32, 64, 128, 256),
                               dis_layer_strides: tuple = (2, 2, 2, 1),
                               dis_leaky_relu_alpha: float = 0.2,
-                              dis_output_activation: str = 'sigmoid',
+                              dis_output_activation: str = 'linear',  # or None
                               gen_image_size: int = 28,
                               gen_kernel_size: int = 5,
                               gen_layer_filters: tuple = (128, 64, 32, 1),
@@ -37,10 +37,10 @@ def conduct_experiment_dc_gan(gen_optimizer: str = 'adam',
                               gen_leaky_relu_alpha: float = 0.2,
                               gen_output_activation: str = 'tanh'):
 
-    directory = path.join(path_to_root, 'dcgan')
+    directory = path.join(path_to_root, 'ls_gan')
 
-    generator = Generator(model_name='dc_gan',
-                          gan_type='dc_gan',
+    generator = Generator(model_name='ls_gan',
+                          gan_type='ls_gan',
                           image_size=gen_image_size,
                           kernel_size=gen_kernel_size,
                           layer_filters=gen_layer_filters,
@@ -77,9 +77,8 @@ def conduct_experiment_dc_gan(gen_optimizer: str = 'adam',
     generator_optimizer = optimizers[gen_optimizer]
     discriminator_optimizer = optimizers[dis_optimizer]
 
-    gan = AdversarialNetwork(generator, discriminator, latent_dim=latent_dim,
-                             batch_size=batch_size, data_nature='mnist')
-    gan.compile(generator_optimizer, discriminator_optimizer, binary_cross_entropy)  # add loss_fn settings?
+    gan = AdversarialNetwork(generator, discriminator, latent_dim=latent_dim, batch_size=batch_size)
+    gan.compile(generator_optimizer, discriminator_optimizer, mean_squared_error)  # add loss_fn settings?
 
     current_time = datetime.now().strftime("%Y%m%d%H%M%S")
 
@@ -92,4 +91,4 @@ def conduct_experiment_dc_gan(gen_optimizer: str = 'adam',
 
 
 if __name__ == '__main__':
-    conduct_experiment_dc_gan()
+    conduct_experiment_ls_gan()

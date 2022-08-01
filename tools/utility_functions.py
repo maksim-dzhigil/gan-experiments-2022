@@ -1,4 +1,5 @@
 from tensorflow.keras.losses import BinaryCrossentropy
+from tensorflow.keras.losses import MSE
 
 
 def named_logs(model, logs):
@@ -8,5 +9,13 @@ def named_logs(model, logs):
     return result
 
 
-def loss_fn(labels, output):
+def binary_cross_entropy(labels, output):
     return BinaryCrossentropy(from_logits=True)(labels, output)
+
+
+def mean_squared_error(labels, output):
+    return MSE(labels, output)
+
+
+def wasserstein_loss(y_label, y_pred):
+    return -K.mean(y_label * y_pred)

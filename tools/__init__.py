@@ -1,2 +1,2 @@
 from .save_results_callback import SaveResultsCallback
-from .utility_functions import named_logs, loss_fn
+from .utility_functions import named_logs, binary_cross_entropy, mean_squared_error

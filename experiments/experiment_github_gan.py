@@ -5,7 +5,7 @@ from networks.github_discriminator import GithubDiscriminator
 from networks.github_generator import GithubGenerator
 from networks.adversarial_models import AdversarialNetwork
 from tools.save_results_callback import SaveResultsCallback
-from tools.utility_functions import loss_fn
+from tools.utility_functions import binary_cross_entropy
 from train_data.prepare_train_data import PrepareTrainData
 from os import path
 
@@ -53,8 +53,9 @@ def conduct_experiment_github_gan(gen_optimizer: str = 'adam',
     generator_optimizer = optimizers[gen_optimizer]
     discriminator_optimizer = optimizers[dis_optimizer]
 
-    gan = AdversarialNetwork(generator, discriminator, latent_dim=latent_dim, batch_size=batch_size)
-    gan.compile(generator_optimizer, discriminator_optimizer, loss_fn)
+    gan = AdversarialNetwork(generator, discriminator, latent_dim=latent_dim,
+                             batch_size=batch_size, data_nature='mnist')
+    gan.compile(generator_optimizer, discriminator_optimizer, binary_cross_entropy)
 
     current_time = datetime.now().strftime("%Y%m%d%H%M%S")
 
