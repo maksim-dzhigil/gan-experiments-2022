@@ -43,9 +43,6 @@ class ConditionalAdversarialNetwork(Model):
         image_one_hot_labels = tf.repeat(
             image_one_hot_labels, repeats=[self.generator.image_size * self.generator.image_size]
         )
-        image_one_hot_labels = tf.reshape(
-            image_one_hot_labels, (-1, self.generator.image_size, self.generator.image_size, self.num_classes)
-        )
 
         random_latent_vectors = tf.random.normal(shape=(self.batch_size, self.latent_dim))
         generator_input = tf.concat(
@@ -54,6 +51,9 @@ class ConditionalAdversarialNetwork(Model):
 
         generated_images = self.generator(generator_input)
 
+        image_one_hot_labels = tf.reshape(
+            image_one_hot_labels, (-1, self.generator.image_size, self.generator.image_size, self.num_classes)
+        )
         fake_image_and_labels = tf.concat([generated_images, image_one_hot_labels], -1)
         real_image_and_labels = tf.concat([real_images, image_one_hot_labels], -1)
         discriminator_input = tf.concat(

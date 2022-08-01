@@ -1,7 +1,7 @@
 from tensorflow.keras.callbacks import TensorBoard
 from tensorflow.keras.optimizers import Adam, RMSprop
 from datetime import datetime
-from networks.gan_discriminator import GanDiscriminator
+from networks.discriminator import Discriminator
 from networks.generator import Generator
 from networks.adversarial_models import ConditionalAdversarialNetwork
 from tools.save_results_callback import SaveResultsCallback
@@ -39,7 +39,7 @@ def conduct_experiment_cond_gan(gen_optimizer: str = 'adam',
 
     directory = path.join(path_to_root, 'cond_gan')
 
-    generator = Generator(model_name='conditional_gan',
+    generator = Generator(model_name='conditional_gen',
                           gan_type='cond_gan',
                           image_size=gen_image_size,
                           kernel_size=gen_kernel_size,
@@ -49,11 +49,13 @@ def conduct_experiment_cond_gan(gen_optimizer: str = 'adam',
                           output_activation=gen_output_activation,
                           )
 
-    discriminator = GanDiscriminator(kernel_size=dis_kernel_size,
-                                     layer_filters=dis_layer_filters,
-                                     layer_strides=dis_layer_strides,
-                                     leaky_relu_alpha=dis_leaky_relu_alpha,
-                                     output_activation=dis_output_activation)
+    discriminator = Discriminator(model_name='conditional_dis',
+                                  gan_type='cond_gan',
+                                  kernel_size=dis_kernel_size,
+                                  layer_filters=dis_layer_filters,
+                                  layer_strides=dis_layer_strides,
+                                  leaky_relu_alpha=dis_leaky_relu_alpha,
+                                  output_activation=dis_output_activation)
 
     callbacks = []
     saving_callback = SaveResultsCallback(saving_period=saving_period,

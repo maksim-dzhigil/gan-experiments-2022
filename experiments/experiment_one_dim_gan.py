@@ -1,7 +1,7 @@
 from tensorflow.keras.callbacks import TensorBoard
 from tensorflow.keras.optimizers import Adam, RMSprop
 from datetime import datetime
-from networks.one_dim_discriminator import OneDimDiscriminator
+from networks.discriminator import Discriminator
 from networks.generator import Generator
 from networks.adversarial_models import AdversarialNetwork
 from tools.save_results_callback import SaveResultsCallback
@@ -33,15 +33,18 @@ def conduct_experiment_one_dim_gan(gen_optimizer: str = 'adam',
 
     directory = path.join(path_to_root, 'one_dim_gan')
 
-    generator = Generator(model_name='one_dim_gan',
+    generator = Generator(model_name='one_dim_gen',
                           gan_type='one_dim',
                           layer_filters=gen_layer_filters,
                           leaky_relu_alpha=gen_leaky_relu_alpha,
                           output_activation=gen_output_activation,
                           )
 
-    discriminator = OneDimDiscriminator(layer_filters=dis_layer_filters,
-                                        output_activation=dis_output_activation)
+    discriminator = Discriminator(model_name='one_dim_dis',
+                                  gan_type='one_dim',
+                                  layer_filters=dis_layer_filters,
+                                  leaky_relu_alpha=gen_leaky_relu_alpha,
+                                  output_activation=gen_output_activation)
 
     callbacks = []
     saving_callback = SaveResultsCallback(saving_period=saving_period,
