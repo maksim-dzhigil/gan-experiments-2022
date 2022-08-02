@@ -39,29 +39,30 @@ class ConditionalAdversarialNetwork(Model):
     def train_step(self, data):
         real_images, one_hot_labels = data
 
+        random_latent_vectors = tf.random.uniform(shape=(self.batch_size, self.latent_dim))
+        generator_input = tf.concat(
+            [random_latent_vectors, one_hot_labels], axis=1
+        )
+        generated_images = self.generator(generator_input)
+
         image_one_hot_labels = one_hot_labels[:, :, None, None]
         image_one_hot_labels = tf.repeat(
             image_one_hot_labels, repeats=[self.generator.image_size * self.generator.image_size]
         )
-
-        random_latent_vectors = tf.random.normal(shape=(self.batch_size, self.latent_dim))
-        generator_input = tf.concat(
-            [random_latent_vectors, one_hot_labels], axis=1
-        )
-
-        generated_images = self.generator(generator_input)
-
         image_one_hot_labels = tf.reshape(
             image_one_hot_labels, (-1, self.generator.image_size, self.generator.image_size, self.num_classes)
         )
+
         fake_image_and_labels = tf.concat([generated_images, image_one_hot_labels], -1)
         real_image_and_labels = tf.concat([real_images, image_one_hot_labels], -1)
         discriminator_input = tf.concat(
             [fake_image_and_labels, real_image_and_labels], axis=0
         )
 
-        labels_for_d_loss = tf.concat([tf.ones((self.batch_size, 1)),
-                                       tf.zeros((self.batch_size, 1))], axis=0)
+        labels_for_d_loss = tf.concat(
+            [tf.ones((self.batch_size, 1)), tf.zeros((self.batch_size, 1))], axis=0
+        )
+
         labels_for_d_loss += 0.05 * tf.random.uniform(tf.shape(labels_for_d_loss))
 
         with tf.GradientTape() as tape:
@@ -73,14 +74,14 @@ class ConditionalAdversarialNetwork(Model):
         )
 
         random_latent_vectors = tf.random.normal(shape=(self.batch_size, self.latent_dim))
-        random_vector_labels = tf.concat(
+        generator_input = tf.concat(
             [random_latent_vectors, one_hot_labels], axis=1
         )
 
         misleading_labels = tf.zeros((self.batch_size, 1))
 
         with tf.GradientTape() as tape:
-            fake_images = self.generator(random_vector_labels)
+            fake_images = self.generator(generator_input)
             fake_image_and_labels = tf.concat([fake_images, image_one_hot_labels], -1)
             predictions = self.discriminator(fake_image_and_labels)
             g_loss = self.loss_fn(misleading_labels, predictions)
@@ -96,7 +97,7 @@ class AdversarialNetwork(Model):
                  generator: AbstractGenerator,
                  discriminator: AbstractDiscriminator,
                  latent_dim: int = 100,
-                 batch_size: int = 100,  # 32
+                 batch_size: int = 32,  # 32
                  model_name: str = 'adversarial_network',
                  data_nature: str = 'mnist'  # one_dim
                  ):
@@ -127,7 +128,7 @@ class AdversarialNetwork(Model):
             real_images = data        # for one_dim
         if self.data_nature == 'mnist':
             real_images, _ = data   # for mnist
-        generator_input = tf.random.normal(shape=(self.batch_size, self.latent_dim))
+        generator_input = tf.random.uniform(shape=(self.batch_size, self.latent_dim))
         generated_images = self.generator(generator_input)
 
         discriminator_input = tf.concat([generated_images, real_images], axis=0)
@@ -154,3 +155,61 @@ class AdversarialNetwork(Model):
         self.g_optimizer.apply_gradients(zip(grads, self.generator.trainable_weights))
 
         return {"d_loss": d_loss, "g_loss": g_loss}
+
+
+class WassersteinAdversarial(Model):
+    def __init__(self,
+                 generator: AbstractGenerator,
+                 discriminator: AbstractDiscriminator,
+                 latent_dim: int = 100,
+                 batch_size: int = 32,
+                 model_name: str = 'conditional_adversarial_network',
+                 num_classes: int = 10,
+                 n_critic: int = 5,
+                 clip_value: float = 0.01
+                 ):
+        super(WassersteinAdversarial, self).__init__(name=model_name)
+        self.generator = generator
+        self.discriminator = discriminator
+        self.latent_dim = latent_dim
+        self.batch_size = batch_size
+        self.num_classes = num_classes
+        self.n_critic = n_critic
+        self.clip_value = clip_value
+
+        self.d_optimizer = None
+        self.g_optimizer = None
+        self.loss_fn = None
+
+    def compile(self,
+                g_optimizer: tf.keras.optimizers = None,
+                d_optimizer: tf.keras.optimizers = None,
+                loss_function: tf.keras.losses = None
+                ):
+        super(AdversarialNetwork, self).compile()
+        self.d_optimizer = d_optimizer
+        self.g_optimizer = g_optimizer
+        self.loss_fn = loss_function
+
+    @tf.function
+    def train_step(self, data):
+        real_images, _ = data
+        generator_input = tf.random.uniform(shape=(self.batch_size, self.latent_dim))
+        generated_images = self.generator(generator_input)
+
+        real_labels = tf.ones((self.batch_size, 1))
+        fake_labels = -real_labels
+
+        fake_dis_input = tf.concat([generated_images, fake_labels])
+        real_dis_input = tf.concat([real_images, real_labels])
+
+        real_labels += 0.05 * tf.random.uniform(tf.shape(real_labels))
+        fake_labels += 0.05 * tf.random.uniform(tf.shape(real_labels))
+
+        with tf.GradientTape() as tape:
+            fake_pred = self.discriminator(fake_dis_input)
+            real_pred = self.discriminator(real_dis_input)
+            d_loss = self.loss_fn(real_labels, fake_labels, real_pred, fake_pred)
+
+
+

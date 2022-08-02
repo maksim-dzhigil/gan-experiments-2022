@@ -9,6 +9,7 @@ class PrepareTrainData:
                  path_to_root: path = path.dirname(__file__),
                  buffer_size: int = 60000,
                  batch_size: int = 32):
+        super(PrepareTrainData, self).__init__()
         self.dataset_name = dataset_name
         self.dataset_path = path.join(path_to_root, 'data', dataset_name)
         self.buffer_size = buffer_size

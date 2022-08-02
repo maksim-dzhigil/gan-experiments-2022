@@ -3,14 +3,13 @@ from tensorflow.keras.optimizers import Adam, RMSprop
 from datetime import datetime
 from networks.discriminator import Discriminator
 from networks.generator import Generator
-from networks.adversarial_models import AdversarialNetwork
+from networks.adversarial_models import WassersteinAdversarial
 from tools.save_results_callback import SaveResultsCallback
-from tools.utility_functions import binary_cross_entropy
+from tools.utility_functions import wasserstein_loss
 from train_data.prepare_train_data import PrepareTrainData
 from os import path
 
-
-def conduct_experiment_dc_gan(gen_optimizer: str = 'adam',
+def conduct_experiment_w_gan(gen_optimizer: str = 'adam',
                               dis_optimizer: str = 'rmsprop',
                               adam_lr: float = 2e-4,
                               adam_beta_1: float = 0.05,
@@ -37,10 +36,10 @@ def conduct_experiment_dc_gan(gen_optimizer: str = 'adam',
                               gen_leaky_relu_alpha: float = 0.2,
                               gen_output_activation: str = 'tanh'):
 
-    directory = path.join(path_to_root, 'dc_gan')
+    directory = path.join(path_to_root, 'w_gan')
 
-    generator = Generator(model_name='dc_gen',
-                          gan_type='dc_gan',
+    generator = Generator(model_name='w_gen',
+                          gan_type='w_gan',
                           image_size=gen_image_size,
                           kernel_size=gen_kernel_size,
                           layer_filters=gen_layer_filters,
@@ -49,8 +48,8 @@ def conduct_experiment_dc_gan(gen_optimizer: str = 'adam',
                           output_activation=gen_output_activation,
                           )
 
-    discriminator = Discriminator(model_name='dc_dis',
-                                  gan_type='ls_gan',
+    discriminator = Discriminator(model_name='w_dis',
+                                  gan_type='w_gan',
                                   kernel_size=dis_kernel_size,
                                   layer_filters=dis_layer_filters,
                                   layer_strides=dis_layer_strides,
@@ -79,9 +78,10 @@ def conduct_experiment_dc_gan(gen_optimizer: str = 'adam',
     generator_optimizer = optimizers[gen_optimizer]
     discriminator_optimizer = optimizers[dis_optimizer]
 
-    gan = AdversarialNetwork(generator, discriminator, latent_dim=latent_dim,
-                             batch_size=batch_size, data_nature='mnist')
-    gan.compile(generator_optimizer, discriminator_optimizer, binary_cross_entropy)
+    gan = WassersteinAdversarial(generator, discriminator, latent_dim=latent_dim,
+                                 batch_size=batch_size, n_critic=5, clip_value=0.01,
+                                 model_name='wasserstein_adversarial')
+    gan.compile(generator_optimizer, discriminator_optimizer, wasserstein_loss)
 
     current_time = datetime.now().strftime("%Y%m%d%H%M%S")
 
@@ -94,4 +94,4 @@ def conduct_experiment_dc_gan(gen_optimizer: str = 'adam',
 
 
 if __name__ == '__main__':
-    conduct_experiment_dc_gan()
+    conduct_experiment_w_gan()

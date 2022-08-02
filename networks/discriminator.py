@@ -38,14 +38,16 @@ class Discriminator(AbstractDiscriminator):
             'dc_gan': self._build_default_structure,
             'cond_gan': self._build_default_structure,
             'ls_gan': self._build_default_structure,
-            'one_dim': self._build_one_dim_structure
+            'one_dim': self._build_one_dim_structure,
+            'w_gan': self._build_default_structure
         }
 
         self.discriminator_calls = {
             'dc_gan': self._call_default_discriminator,
             'cond_gan': self._call_default_discriminator,
             'ls_gan': self._call_default_discriminator,
-            'one_dim': self._call_one_dim_discriminator
+            'one_dim': self._call_one_dim_discriminator,
+            'w_gan': self._call_default_discriminator
         }
 
         self.discriminator_construct[self.gan_type]()

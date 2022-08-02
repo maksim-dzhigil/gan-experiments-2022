@@ -41,14 +41,16 @@ class Generator(AbstractGenerator):
             'dc_gan': self._build_default_structure,
             'cond_gan': self._build_default_structure,
             'ls_gan': self._build_default_structure,
-            'one_dim': self._build_one_dim_structure
+            'one_dim': self._build_one_dim_structure,
+            'w_gan': self._build_default_structure
         }
 
         self.generator_calls = {
             'dc_gan': self._call_default_generator,
             'cond_gan': self._call_default_generator,
             'ls_gan': self._call_default_generator,
-            'one_dim': self._call_one_dim_generator
+            'one_dim': self._call_one_dim_generator,
+            'w_gan': self._call_default_generator
         }
 
         self.generator_construct[self.gan_type]()
