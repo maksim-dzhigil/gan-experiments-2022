@@ -18,10 +18,10 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(True, True)  # add assertion here
 
     def test_buffer_size(self):
-        buffer_size = 10
+        num_of_elements = 10
         batch_size = 1
-        ptd = PrepareTrainData(buffer_size=buffer_size, batch_size=batch_size)
-        self.assertEqual(buffer_size/batch_size, len(list(ptd.dataset)))
+        ptd = PrepareTrainData(number_of_elements=num_of_elements, batch_size=batch_size)
+        self.assertEqual(num_of_elements, len(list(ptd.dataset)))
 
     def test_integration_one_dim_gan(self):
         gen_optimizer = 'adam'
@@ -47,7 +47,7 @@ class MyTestCase(unittest.TestCase):
         ptd = PrepareTrainData(dataset_name='one_dim',
                                buffer_size=buffer_size,
                                batch_size=batch_size)
-        dataset = ptd.dataset
+        train_data = ptd.dataset.take(1)
 
         generator_optimizer = optimizers[gen_optimizer]
         discriminator_optimizer = optimizers[dis_optimizer]
@@ -58,14 +58,14 @@ class MyTestCase(unittest.TestCase):
                                  data_nature='one_dim')
         gan.compile(generator_optimizer, discriminator_optimizer, binary_cross_entropy)  # add loss_fn settings?
 
-        _history = gan.fit(dataset, epochs=epochs)
+        _history = gan.fit(train_data, epochs=epochs)
 
     def test_integration_ls_gan(self):
 
         gen_optimizer = 'adam'
         dis_optimizer = 'rmsprop'
         epochs = 1
-        buffer_size = 5
+        buffer_size = 1
         batch_size = 1
 
         generator = Generator()
@@ -76,8 +76,9 @@ class MyTestCase(unittest.TestCase):
             'rmsprop': RMSprop()
         }
 
-        ptd = PrepareTrainData(buffer_size=buffer_size)
-        dataset = ptd.dataset
+        ptd = PrepareTrainData(buffer_size=buffer_size,
+                               batch_size=batch_size)
+        train_data = ptd.dataset.take(1)
 
         generator_optimizer = optimizers[gen_optimizer]
         discriminator_optimizer = optimizers[dis_optimizer]
@@ -85,7 +86,7 @@ class MyTestCase(unittest.TestCase):
         gan = AdversarialNetwork(generator, discriminator, batch_size=batch_size)
         gan.compile(generator_optimizer, discriminator_optimizer, binary_cross_entropy)
 
-        _history = gan.fit(dataset, epochs=epochs)
+        _history = gan.fit(train_data, epochs=epochs)
 
     def test_integration_github_gan(self):
 
@@ -101,7 +102,7 @@ class MyTestCase(unittest.TestCase):
         ptd = PrepareTrainData(buffer_size=buffer_size,
                                batch_size=batch_size)
 
-        dataset = ptd.dataset
+        train_data = ptd.dataset.take(1)
 
         generator_optimizer = optimizers['adam']
         discriminator_optimizer = optimizers['adam']
@@ -110,7 +111,7 @@ class MyTestCase(unittest.TestCase):
                                  batch_size=batch_size, data_nature='mnist')
         gan.compile(generator_optimizer, discriminator_optimizer, binary_cross_entropy)
 
-        _history = gan.fit(dataset, epochs=epochs)
+        _history = gan.fit(train_data, epochs=epochs)
 
     def test_integration_dc_gan(self):
         generator = Generator()
@@ -124,7 +125,7 @@ class MyTestCase(unittest.TestCase):
         ptd = PrepareTrainData(buffer_size=buffer_size,
                                batch_size=batch_size)
 
-        dataset = ptd.dataset
+        train_data = ptd.dataset.take(1)
 
         generator_optimizer = optimizers['adam']
         discriminator_optimizer = optimizers['adam']
@@ -132,19 +133,19 @@ class MyTestCase(unittest.TestCase):
         gan = AdversarialNetwork(generator, discriminator,
                                  batch_size=batch_size, data_nature='mnist')
         gan.compile(generator_optimizer, discriminator_optimizer, binary_cross_entropy)
-        _history = gan.fit(dataset, epochs=epochs)
+        _history = gan.fit(train_data, epochs=epochs)
 
     def test_integration_cond_gan(self):
         generator = Generator(gan_type='cond_gan')
         discriminator = Discriminator(gan_type='cond_gan')
-        buffer_size = 1
+        buffer_size = 10000
         batch_size = 1
         epochs = 1
 
         ptd = PrepareTrainData(buffer_size=buffer_size,
                                batch_size=batch_size)
 
-        dataset = ptd.dataset
+        train_data = ptd.dataset.take(1)
 
         optimizers = {'adam': Adam(), 'rmsprop': RMSprop()}
 
@@ -154,7 +155,7 @@ class MyTestCase(unittest.TestCase):
         gan = ConditionalAdversarialNetwork(generator, discriminator,
                                             batch_size=batch_size)
         gan.compile(generator_optimizer, discriminator_optimizer, binary_cross_entropy)
-        _history = gan.fit(dataset, epochs=epochs)
+        _history = gan.fit(train_data, epochs=epochs)
 
 
 if __name__ == '__main__':

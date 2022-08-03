@@ -18,5 +18,5 @@ def mean_squared_error(labels, output):
     return MSE(labels, output)
 
 
-def wasserstein_loss(real_label, fake_label, real_pred, fake_pred):
-    return 0.5 * (mean(real_label * real_pred) + mean(fake_label * fake_pred))
+def wasserstein_loss(label, pred):
+    return mean(label * pred)

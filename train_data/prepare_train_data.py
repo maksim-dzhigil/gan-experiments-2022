@@ -7,11 +7,13 @@ class PrepareTrainData:
     def __init__(self,
                  dataset_name: str = 'mnist',
                  path_to_root: path = path.dirname(__file__),
+                 number_of_elements: int = 60000,
                  buffer_size: int = 60000,
                  batch_size: int = 32):
         super(PrepareTrainData, self).__init__()
         self.dataset_name = dataset_name
         self.dataset_path = path.join(path_to_root, 'data', dataset_name)
+        self.number_of_elements = number_of_elements
         self.buffer_size = buffer_size
         self.batch_size = batch_size
 
@@ -34,19 +36,19 @@ class PrepareTrainData:
         dataset = tf.data.Dataset \
             .from_tensor_slices((x_train, y_train)) \
             .shuffle(self.buffer_size) \
-            .batch(self.batch_size)
+            .padded_batch(self.batch_size)
 
         # tf.data.experimental.save(dataset, self.dataset_path)
 
         return dataset
 
     def _prepare_distribution(self):
-        init_sampling = random.normal(0, 1, size=self.buffer_size).astype('float32')
+        init_sampling = random.normal(0, 1, size=self.number_of_elements).astype('float32')
         x_train = init_sampling[(init_sampling < -3) |
                                 ((-2 < init_sampling) & (init_sampling < -1)) |
                                 ((0 < init_sampling) & (init_sampling < 1)) |
                                 ((2 < init_sampling) & (init_sampling < 3))]
-        x_train = random.choice(x_train, self.buffer_size)[:, newaxis]
+        x_train = random.choice(x_train, self.number_of_elements)[:, newaxis]
 
         dataset = tf.data.Dataset \
             .from_tensor_slices(x_train) \

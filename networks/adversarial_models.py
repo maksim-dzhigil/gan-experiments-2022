@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 
 from tensorflow.keras.models import Model
 
@@ -186,7 +187,7 @@ class WassersteinAdversarial(Model):
                 d_optimizer: tf.keras.optimizers = None,
                 loss_function: tf.keras.losses = None
                 ):
-        super(AdversarialNetwork, self).compile()
+        super(WassersteinAdversarial, self).compile()
         self.d_optimizer = d_optimizer
         self.g_optimizer = g_optimizer
         self.loss_fn = loss_function
@@ -194,22 +195,52 @@ class WassersteinAdversarial(Model):
     @tf.function
     def train_step(self, data):
         real_images, _ = data
-        generator_input = tf.random.uniform(shape=(self.batch_size, self.latent_dim))
-        generated_images = self.generator(generator_input)
+        d_loss = 0
+        for _ in range(self.n_critic):
+            generator_input = tf.random.uniform(shape=(self.batch_size, self.latent_dim))
+            generated_images = self.generator(generator_input)
 
-        real_labels = tf.ones((self.batch_size, 1))
-        fake_labels = -real_labels
+            real_labels = tf.ones((self.batch_size, 1))
+            fake_labels = -(tf.ones((self.batch_size, 1)))
 
-        fake_dis_input = tf.concat([generated_images, fake_labels])
-        real_dis_input = tf.concat([real_images, real_labels])
+            real_labels += 0.05 * tf.random.uniform(tf.shape(real_labels))
+            fake_labels += 0.05 * tf.random.uniform(tf.shape(real_labels))
 
-        real_labels += 0.05 * tf.random.uniform(tf.shape(real_labels))
-        fake_labels += 0.05 * tf.random.uniform(tf.shape(real_labels))
+            with tf.GradientTape() as tape:
+                fake_pred = self.discriminator(generated_images)
+                real_pred = self.discriminator(real_images)
+                fake_loss = self.loss_fn(fake_labels, fake_pred)
+                real_loss = self.loss_fn(real_labels, real_pred)
+                uni_loss = 0.5 * (real_loss + fake_loss)
+
+            d_loss += uni_loss
+            grads = tape.gradient(uni_loss, self.discriminator.trainable_weights)
+            self.g_optimizer.apply_gradients(zip(grads, self.discriminator.trainable_weights))
+
+            for layer in self.discriminator.layers:
+                if len(layer.trainable_weights) != 0:
+                    weights = layer.trainable_weights  # .get_weights()
+                    # weights = [tf.clip_by_value(weights,
+                    #                    -self.clip_value,
+                    #                    self.clip_value)]
+                    layer.set_weights(weights)
+
+        d_loss /= self.n_critic
+
+        generator_input = tf.random.normal(shape=(self.batch_size, self.latent_dim))
+        misleading_labels = tf.zeros((self.batch_size, 1))
 
         with tf.GradientTape() as tape:
-            fake_pred = self.discriminator(fake_dis_input)
-            real_pred = self.discriminator(real_dis_input)
-            d_loss = self.loss_fn(real_labels, fake_labels, real_pred, fake_pred)
+            discriminator_input = self.generator(generator_input)
+            predictions = self.discriminator(discriminator_input)
+            g_loss = self.loss_fn(misleading_labels, predictions)
+
+        grads = tape.gradient(g_loss, self.generator.trainable_weights)
+        self.g_optimizer.apply_gradients(zip(grads, self.generator.trainable_weights))
+
+        return {"d_loss": d_loss, "g_loss": g_loss}
+
+
 
 
 
